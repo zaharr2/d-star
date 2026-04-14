@@ -6,6 +6,7 @@ defineProps<{
   pathFound: boolean
   replanCount: number
   nodesProcessed: number
+  escapeCount: number
 }>()
 </script>
 
@@ -13,6 +14,9 @@ defineProps<{
   <div class="info-panel">
     <span>Steps: <strong>{{ stepCount }}</strong></span>
     <span>Replans: <strong>{{ replanCount }}</strong></span>
+    <span v-if="escapeCount > 0" class="escape" title="Виходи з циклів">
+      Escapes: <strong>{{ escapeCount }}</strong>
+    </span>
     <span>Nodes: <strong>{{ nodesProcessed }}</strong></span>
     <span v-if="isFinished" :class="pathFound ? 'success' : 'fail'">
       {{ pathFound ? 'Found!' : 'No path' }}
@@ -42,4 +46,5 @@ defineProps<{
 
 .success { color: #22c55e; font-weight: bold; }
 .fail { color: #ef4444; font-weight: bold; }
+.escape { color: #f59e0b; }
 </style>

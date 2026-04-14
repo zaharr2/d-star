@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { HeuristicType } from '../types'
 
-const props = defineProps<{
+type PickMode = 'none' | 'start' | 'end'
+
+defineProps<{
   isRunning: boolean
   isPaused: boolean
   isFinished: boolean
@@ -9,6 +11,8 @@ const props = defineProps<{
   heuristicType: HeuristicType
   visibilityRadius: number
   wallDensity: number
+  pickMode: PickMode
+  fogEnabled: boolean
 }>()
 
 const emit = defineEmits<{
@@ -17,13 +21,15 @@ const emit = defineEmits<{
   step: []
   reset: []
   generateMaze: []
+  'pick-start': []
+  'pick-end': []
+  'cancel-pick': []
   'update:speed': [value: number]
   'update:heuristicType': [value: HeuristicType]
   'update:visibilityRadius': [value: number]
   'update:wallDensity': [value: number]
+  'update:fogEnabled': [value: boolean]
 }>()
-
-const algorithmActive = props.isRunning || props.isPaused
 </script>
 
 <template>
@@ -38,6 +44,36 @@ const algorithmActive = props.isRunning || props.isPaused
       <button @click="emit('generateMaze')" :disabled="isRunning || isPaused">
         Generate Maze
       </button>
+      <button
+        class="pick-btn start"
+        :class="{ active: pickMode === 'start' }"
+        :disabled="isRunning || isPaused"
+        :aria-pressed="pickMode === 'start'"
+        :title="'Поставити старт (S)'"
+        @click="emit('pick-start')"
+      >
+        <span class="marker-dot start-dot" aria-hidden="true"></span>
+        Поставити старт
+      </button>
+      <button
+        class="pick-btn end"
+        :class="{ active: pickMode === 'end' }"
+        :disabled="isRunning || isPaused"
+        :aria-pressed="pickMode === 'end'"
+        :title="'Поставити фініш (F)'"
+        @click="emit('pick-end')"
+      >
+        <span class="marker-dot end-dot" aria-hidden="true"></span>
+        Поставити фініш
+      </button>
+    </div>
+
+    <div v-if="pickMode !== 'none'" class="hint" role="status">
+      <span>
+        Клікніть на гриді, щоб поставити
+        {{ pickMode === 'start' ? 'старт' : 'фініш' }}.
+      </span>
+      <button class="cancel" @click="emit('cancel-pick')">Скасувати (Esc)</button>
     </div>
 
     <div class="row">
@@ -47,10 +83,22 @@ const algorithmActive = props.isRunning || props.isPaused
           :value="speed" @input="emit('update:speed', +($event.target as HTMLInputElement).value)" />
       </label>
 
-      <label>
+      <label class="toggle">
+        <input
+          type="checkbox"
+          :checked="fogEnabled"
+          :disabled="isRunning || isPaused"
+          @change="emit('update:fogEnabled', ($event.target as HTMLInputElement).checked)"
+        />
+        Туман війни
+      </label>
+
+      <label :class="{ muted: !fogEnabled }">
         Visibility: {{ visibilityRadius }}
         <input type="range" min="1" max="20" step="1"
-          :value="visibilityRadius" @input="emit('update:visibilityRadius', +($event.target as HTMLInputElement).value)" />
+          :value="visibilityRadius"
+          :disabled="!fogEnabled"
+          @input="emit('update:visibilityRadius', +($event.target as HTMLInputElement).value)" />
       </label>
 
       <label>
@@ -105,5 +153,53 @@ label {
 
 input[type="range"] {
   width: 100px;
+}
+
+.pick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pick-btn.active {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
+}
+
+.marker-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.start-dot { background: #22c55e; }
+.end-dot { background: #ef4444; }
+
+.hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  color: var(--color-text);
+  font-size: 0.85rem;
+}
+
+.cancel {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.toggle {
+  gap: 0.4rem;
+}
+
+.muted {
+  opacity: 0.55;
 }
 </style>

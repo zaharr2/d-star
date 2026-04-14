@@ -24,8 +24,9 @@ export interface DStarState {
   raisedNodes: Coord[]
   loweredNodes: Coord[]
   message: string
-  phase: 'planning' | 'moving' | 'replanning' | 'finished'
+  phase: 'planning' | 'moving' | 'replanning' | 'escape' | 'finished'
   found: boolean
   replanCount: number
   nodesProcessed: number
+  escapeCount?: number
 }

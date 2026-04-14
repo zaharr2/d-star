@@ -35,11 +35,13 @@ const props = defineProps<{
   drawVersion: number
   agentPos: { x: number; y: number } | null
   disabled: boolean
+  pickMode?: 'none' | 'start' | 'end'
 }>()
 
 const emit = defineEmits<{
   toggleWall: [x: number, y: number]
   setWall: [x: number, y: number]
+  pickAt: [x: number, y: number]
 }>()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -66,12 +68,17 @@ function handleMouseDown(e: MouseEvent) {
   if (props.disabled) return
   const pos = getCellFromEvent(e)
   if (!pos) return
+  if (props.pickMode && props.pickMode !== 'none') {
+    emit('pickAt', pos.x, pos.y)
+    return
+  }
   isDrawing.value = true
   emit('toggleWall', pos.x, pos.y)
 }
 
 function handleMouseMove(e: MouseEvent) {
   if (!isDrawing.value || props.disabled) return
+  if (props.pickMode && props.pickMode !== 'none') return
   const pos = getCellFromEvent(e)
   if (!pos) return
   emit('setWall', pos.x, pos.y)
@@ -200,7 +207,11 @@ onUnmounted(() => {
   <canvas
     ref="canvasRef"
     class="grid-canvas"
-    :style="{ maxWidth: gridSize + 'px', maxHeight: gridSize + 'px' }"
+    :style="{
+      maxWidth: gridSize + 'px',
+      maxHeight: gridSize + 'px',
+      cursor: pickMode && pickMode !== 'none' ? 'crosshair' : 'pointer',
+    }"
     @mousedown.prevent="handleMouseDown"
     @mousemove="handleMouseMove"
     @mouseleave="handleMouseUp"

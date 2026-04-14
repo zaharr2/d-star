@@ -133,6 +133,38 @@ export function useGrid() {
     drawVersion.value++
   }
 
+  function setStart(x: number, y: number): boolean {
+    const cell = cells.value[y]?.[x]
+    if (!cell) return false
+    if (x === end.value.x && y === end.value.y) return false
+
+    const oldStart = start.value
+    const oldCell = cells.value[oldStart.y]?.[oldStart.x]
+    if (oldCell) oldCell.type = 'empty'
+
+    if (cell.type === 'wall') cell.type = 'empty'
+    cell.type = 'start'
+    start.value = { x, y }
+    drawVersion.value++
+    return true
+  }
+
+  function setEnd(x: number, y: number): boolean {
+    const cell = cells.value[y]?.[x]
+    if (!cell) return false
+    if (x === start.value.x && y === start.value.y) return false
+
+    const oldEnd = end.value
+    const oldCell = cells.value[oldEnd.y]?.[oldEnd.x]
+    if (oldCell) oldCell.type = 'empty'
+
+    if (cell.type === 'wall') cell.type = 'empty'
+    cell.type = 'end'
+    end.value = { x, y }
+    drawVersion.value++
+    return true
+  }
+
   function clearAlgorithmState() {
     for (const row of cells.value) {
       for (const cell of row) {
@@ -153,6 +185,8 @@ export function useGrid() {
     cols: COLS,
     toggleWall,
     setWall,
+    setStart,
+    setEnd,
     generateMaze,
     clearAll,
     clearAlgorithmState,

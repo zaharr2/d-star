@@ -1,103 +1,38 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { useGrid } from './composables/useGrid'
-import { useVisibility } from './composables/useVisibility'
-import { useRunner } from './composables/useRunner'
-import GridCanvas from './components/GridCanvas.vue'
-import ControlPanel from './components/ControlPanel.vue'
-import InfoPanel from './components/InfoPanel.vue'
-import Legend from './components/Legend.vue'
+import { computed } from 'vue'
+import TabBar from './components/TabBar.vue'
+import { projects, defaultProjectId } from './projects'
+import { useActiveTab } from './composables/useActiveTab'
 
-const grid = useGrid()
-const visibility = useVisibility(grid.cells)
-visibility.initFog(grid.start.value)
+const validIds = projects.filter(p => !p.disabled).map(p => p.id)
+const { activeId } = useActiveTab(validIds, defaultProjectId)
 
-const runner = useRunner(
-  grid.cells, grid.start, grid.end, grid.clearAlgorithmState,
-  visibility.radius, visibility.updateVisibility, visibility.initFog
+const activeProject = computed(
+  () => projects.find(p => p.id === activeId.value) ?? projects[0]
 )
-
-const algorithmActive = computed(() => runner.isRunning.value || runner.isPaused.value)
-const drawVersion = computed(() => grid.drawVersion.value + runner.drawVersion.value)
-
-const GRID_MAX_SIZE = 1000
-const windowWidth = ref(window.innerWidth)
-function onResize() { windowWidth.value = window.innerWidth }
-onMounted(() => window.addEventListener('resize', onResize))
-onUnmounted(() => window.removeEventListener('resize', onResize))
-
-const gridSize = computed(() => Math.min(GRID_MAX_SIZE, windowWidth.value - 48))
-
-function handleGenerateMaze() {
-  runner.reset()
-  grid.generateMaze()
-  visibility.initFog(grid.start.value)
-}
-
-function handleReset() {
-  runner.reset()
-  visibility.initFog(grid.start.value)
-}
-
-function handleRadiusChange(value: number) {
-  runner.reset()
-  visibility.radius.value = value
-  visibility.initFog(grid.start.value)
-}
-
-function handleDensityChange(value: number) {
-  grid.wallDensity.value = value
-}
-
-function handleHeuristicChange(value: string) {
-  runner.reset()
-  runner.heuristicType.value = value as any
-}
 </script>
 
 <template>
   <div class="app">
-    <h1 class="title">D* Pathfinding</h1>
+    <h1 class="title">Візуалізація алгоритмів пошуку шляху</h1>
 
-    <ControlPanel
-      :is-running="runner.isRunning.value"
-      :is-paused="runner.isPaused.value"
-      :is-finished="runner.isFinished.value"
-      :speed="runner.speed.value"
-      :heuristic-type="runner.heuristicType.value"
-      :visibility-radius="visibility.radius.value"
-      :wall-density="grid.wallDensity.value"
-      @play="runner.play()"
-      @pause="runner.pause()"
-      @step="runner.step()"
-      @reset="handleReset"
-      @generate-maze="handleGenerateMaze"
-      @update:speed="runner.speed.value = $event"
-      @update:heuristic-type="handleHeuristicChange"
-      @update:visibility-radius="handleRadiusChange"
-      @update:wall-density="handleDensityChange"
+    <TabBar
+      :projects="projects"
+      :active-id="activeId"
+      @update:active-id="activeId = $event"
     />
 
-    <InfoPanel
-      :message="runner.currentMessage.value"
-      :step-count="runner.stepCount.value"
-      :is-finished="runner.isFinished.value"
-      :path-found="runner.pathFound.value"
-      :replan-count="runner.replanCount.value"
-      :nodes-processed="runner.nodesProcessed.value"
-    />
-
-    <GridCanvas
-      :cells="grid.cells.value"
-      :grid-size="gridSize"
-      :draw-version="drawVersion"
-      :agent-pos="runner.agentPos.value"
-      :disabled="algorithmActive"
-      @toggle-wall="grid.toggleWall"
-      @set-wall="grid.setWall"
-    />
-
-    <Legend />
+    <div
+      class="panel"
+      role="tabpanel"
+      :id="`tabpanel-${activeProject.id}`"
+      :aria-labelledby="`tab-${activeProject.id}`"
+    >
+      <component :is="activeProject.component" v-if="activeProject.component" :key="activeProject.id" />
+      <div v-else class="placeholder">
+        <p>{{ activeProject.title }} — в розробці</p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -118,5 +53,20 @@ function handleHeuristicChange(value: string) {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  text-align: center;
+}
+
+.panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.placeholder {
+  padding: 3rem;
+  color: var(--color-text-muted);
+  font-size: 1rem;
 }
 </style>

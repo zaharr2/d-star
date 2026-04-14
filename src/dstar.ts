@@ -141,6 +141,18 @@ class OpenList {
     this.siftDown(i)
   }
 
+  // Priorities depend on robotPos; after robot moves heap order becomes stale.
+  rebuild() {
+    for (let i = (this.heap.length >> 1) - 1; i >= 0; i--) {
+      this.siftDown(i)
+    }
+  }
+
+  clear() {
+    this.heap = []
+    this.idx.clear()
+  }
+
   get empty(): boolean { return this.heap.length === 0 }
 }
 
@@ -160,7 +172,7 @@ export function* focusedDStar(
 ): Generator<DStarState> {
   const PROCESS_LIMIT = ROWS * COLS * 2
   const MOVE_LIMIT = ROWS * COLS * 4
-  const VISIT_LIMIT = 3
+  const PROGRESS_WINDOW = 20  // steps without goal-progress before escape
 
   const open = new OpenList()
   open.setHeuristic(heuristicType)
@@ -169,11 +181,19 @@ export function* focusedDStar(
   open.setRobot(robotPos)
 
   let replanCount = 0
+  let escapeCount = 0
   let totalProcessed = 0
   const knownWalls = new Set<number>()
   const traversedPath: Coord[] = [{ ...start }]
-  const visitCount = new Map<number, number>()
-  visitCount.set(coordKey(start.x, start.y), 1)
+
+  // Progress-free oscillation detector: track best manhattan-to-goal seen
+  // and how many moves since we last improved it.
+  function manhattanToGoal(p: Coord): number {
+    return Math.abs(p.x - goal.x) + Math.abs(p.y - goal.y)
+  }
+  let bestDistToGoal = manhattanToGoal(start)
+  let stepsSinceImprovement = 0
+  const recentPositions: Coord[] = []  // sliding window for soft-escape
 
   // Flat node storage for O(1) access
   const nodes: (DNode | null)[] = new Array(ROWS * COLS).fill(null)
@@ -334,7 +354,10 @@ export function* focusedDStar(
   function modifyCost(nx: number, ny: number) {
     const node = getNode(nx, ny)
     if (node.tag === 'CLOSED') {
-      insertNode(node, node.h)
+      // Force RAISE: insertNode with h=INF sets kold=node.h, new h=INF → kold<h
+      // triggers RAISE branch in processState, propagating invalidation through
+      // the backpointer subtree that routed through this cell.
+      insertNode(node, INF)
     }
   }
 
@@ -357,7 +380,46 @@ export function* focusedDStar(
       found,
       replanCount,
       nodesProcessed: totalProcessed,
+      escapeCount,
     }
+  }
+
+  function softEscape(): Coord[] {
+    // Force-RAISE every cell in recent oscillation window + immediate neighbors.
+    // Inserts them at h=INF so processState's RAISE branch propagates through
+    // any stale backpointers in their subtree.
+    const touched: Coord[] = []
+    const seen = new Set<number>()
+    for (const p of recentPositions) {
+      const around = [p, ...getNeighbors(p.x, p.y)]
+      for (const c of around) {
+        const k = coordKey(c.x, c.y)
+        if (seen.has(k)) continue
+        seen.add(k)
+        if (knownWalls.has(k)) continue
+        const n = getNode(c.x, c.y)
+        if (n.tag === 'CLOSED') {
+          insertNode(n, INF)
+          touched.push({ x: c.x, y: c.y })
+        }
+      }
+    }
+    planUntilRobotSettled()
+    return touched
+  }
+
+  function hardEscape() {
+    // Wipe DNodes and open list, re-seed goal. Deterministic correct baseline
+    // using current knownWalls. Used when soft escape fails to change behavior.
+    for (let i = 0; i < nodes.length; i++) nodes[i] = null
+    open.clear()
+    const g = getNode(goal.x, goal.y)
+    insertNode(g, 0)
+    planUntilRobotSettled()
+  }
+
+  function isProgressStalled(): boolean {
+    return stepsSinceImprovement >= PROGRESS_WINDOW
   }
 
   // ===== INITIAL PLANNING =====
@@ -442,39 +504,24 @@ export function* focusedDStar(
       continue
     }
 
-    // 5. Detect oscillation
-    const nextKey = coordKey(nextX, nextY)
-    const visits = (visitCount.get(nextKey) ?? 0) + 1
-    visitCount.set(nextKey, visits)
-
-    if (visits >= VISIT_LIMIT) {
-      // Force replan: reset robot node
-      const rn = getNode(robotPos.x, robotPos.y)
-      rn.tag = 'NEW'
-      rn.h = INF
-      rn.k = INF
-      rn.bx = -1
-      rn.by = -1
-      insertNode(rn, INF)
-      planUntilRobotSettled()
-      replanCount++
-      plannedPath = extractPath()
-
-      const rn2 = getNode(robotPos.x, robotPos.y)
-      if (rn2.h === INF || rn2.bx === -1) {
-        yield makeState([], [], [],
-          `Зациклення: не вдалося знайти альтернативний шлях`,
-          'finished', false)
-        return
-      }
-      visitCount.clear()
-      continue
-    }
-
-    // 6. Move
+    // 5. Move
     robotPos = { x: nextX, y: nextY }
     open.setRobot(robotPos)
+    // Priorities depend on robotPos; without rebuild, pop() returns stale order.
+    open.rebuild()
     traversedPath.push({ ...robotPos })
+
+    // Track progress toward goal
+    const d = manhattanToGoal(robotPos)
+    if (d < bestDistToGoal) {
+      bestDistToGoal = d
+      stepsSinceImprovement = 0
+    } else {
+      stepsSinceImprovement++
+    }
+    recentPositions.push({ ...robotPos })
+    if (recentPositions.length > PROGRESS_WINDOW) recentPositions.shift()
+
     plannedPath = extractPath()
 
     yield makeState(
@@ -482,6 +529,47 @@ export function* focusedDStar(
       `Крок до (${robotPos.x}, ${robotPos.y})`,
       'moving', false
     )
+
+    // 6. Oscillation detected? Escalate.
+    if (isProgressStalled()) {
+      escapeCount++
+      const softTouched = softEscape()
+      plannedPath = extractPath()
+      stepsSinceImprovement = 0
+      bestDistToGoal = manhattanToGoal(robotPos)
+
+      const rnAfterSoft = getNode(robotPos.x, robotPos.y)
+      const softOk = rnAfterSoft.h < INF &&
+        rnAfterSoft.bx !== -1 &&
+        pathReachesGoal(plannedPath)
+
+      if (softOk) {
+        yield makeState(
+          plannedPath, softTouched, [],
+          `Агент застряг у кишені — пробую обхідний маршрут (escape #${escapeCount})`,
+          'escape', pathReachesGoal(plannedPath)
+        )
+        continue
+      }
+
+      // Soft failed: hard reset from current known walls
+      hardEscape()
+      plannedPath = extractPath()
+      const rnAfterHard = getNode(robotPos.x, robotPos.y)
+
+      if (rnAfterHard.h === INF || rnAfterHard.bx === -1) {
+        yield makeState([], [], [],
+          `Усі видимі проходи ведуть у тупик. Ціль, можливо, за туманом війни.`,
+          'finished', false)
+        return
+      }
+
+      yield makeState(
+        plannedPath, [], [],
+        `Переплановую з поточної позиції — попередній шлях привів у глухий кут (escape #${escapeCount})`,
+        'escape', pathReachesGoal(plannedPath)
+      )
+    }
   }
 
   yield makeState([], [], [],

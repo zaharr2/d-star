@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { ref, onScopeDispose, type Ref } from 'vue'
 import { focusedDStar } from '../dstar'
 import type { Cell, Coord, HeuristicType, DStarState } from '../types'
 
@@ -9,7 +9,8 @@ export function useRunner(
   clearAlgorithmState: () => void,
   visibilityRadius: Ref<number>,
   updateVisibility: (pos: Coord) => void,
-  initFog: (pos: Coord) => void
+  initFog: (pos: Coord) => void,
+  fogEnabled: Ref<boolean>
 ) {
   const drawVersion = ref(0)
   const isRunning = ref(false)
@@ -23,6 +24,7 @@ export function useRunner(
   const agentPos = ref<Coord | null>(null)
   const replanCount = ref(0)
   const nodesProcessed = ref(0)
+  const escapeCount = ref(0)
 
   let generator: Generator<DStarState> | null = null
   let animationId: number | null = null
@@ -69,6 +71,7 @@ export function useRunner(
     pathFound.value = state.found
     replanCount.value = state.replanCount
     nodesProcessed.value = state.nodesProcessed
+    if (state.escapeCount !== undefined) escapeCount.value = state.escapeCount
 
     if (state.agentPos) {
       updateVisibility(state.agentPos)
@@ -114,9 +117,20 @@ export function useRunner(
 
   function getVisibleWalls(pos: Coord): Coord[] {
     const walls: Coord[] = []
-    const r = visibilityRadius.value
     const rowCount = cells.value.length
     const colCount = cells.value[0]?.length ?? 0
+
+    if (!fogEnabled.value) {
+      for (let y = 0; y < rowCount; y++) {
+        for (let x = 0; x < colCount; x++) {
+          const t = cells.value[y][x].type
+          if (t === 'wall' || t === 'water') walls.push({ x, y })
+        }
+      }
+      return walls
+    }
+
+    const r = visibilityRadius.value
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         const nx = pos.x + dx
@@ -145,6 +159,7 @@ export function useRunner(
     pathFound.value = false
     replanCount.value = 0
     nodesProcessed.value = 0
+    escapeCount.value = 0
     generator = focusedDStar(start.value, end.value, heuristicType.value, getVisibleWalls, getWeight)
   }
 
@@ -182,14 +197,24 @@ export function useRunner(
     agentPos.value = null
     replanCount.value = 0
     nodesProcessed.value = 0
+    escapeCount.value = 0
     clearAlgorithmState()
     drawVersion.value++
   }
 
+  onScopeDispose(() => {
+    if (timeoutId) clearTimeout(timeoutId)
+    if (animationId) cancelAnimationFrame(animationId)
+    timeoutId = null
+    animationId = null
+    generator = null
+    isRunning.value = false
+  })
+
   return {
     drawVersion, isRunning, isPaused, isFinished, pathFound,
     speed, heuristicType, stepCount, currentMessage,
-    agentPos, replanCount, nodesProcessed,
+    agentPos, replanCount, nodesProcessed, escapeCount,
     play, pause, step, reset,
   }
 }
