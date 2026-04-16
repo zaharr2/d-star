@@ -1,5 +1,7 @@
 import type { Component } from 'vue'
 import DStarProject from './dstar/DStarProject.vue'
+import AStarProject from './astar/AStarProject.vue'
+import DijkstraProject from './dijkstra/DijkstraProject.vue'
 
 export interface ProjectDef {
   id: string
@@ -11,8 +13,8 @@ export interface ProjectDef {
 
 export const projects: ProjectDef[] = [
   { id: 'dstar', title: 'Пошук шляху D*', component: DStarProject },
-  { id: 'astar', title: 'A*', component: null, disabled: true, badge: 'Скоро' },
-  { id: 'dijkstra', title: 'Дейкстра', component: null, disabled: true, badge: 'Скоро' },
+  { id: 'astar', title: 'A*', component: AStarProject },
+  { id: 'dijkstra', title: 'Дейкстра', component: DijkstraProject },
 ]
 
 export const defaultProjectId = 'dstar'

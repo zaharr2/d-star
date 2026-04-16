@@ -1,5 +1,5 @@
 export type CellType = 'empty' | 'wall' | 'water' | 'start' | 'end'
-export type CellState = 'idle' | 'path' | 'current' | 'visited' | 'raise' | 'lower'
+export type CellState = 'idle' | 'path' | 'current' | 'visited' | 'raise' | 'lower' | 'open'
 export type CellVisibility = 'unseen' | 'seen' | 'visible'
 export type HeuristicType = 'manhattan' | 'euclidean' | 'chebyshev'
 

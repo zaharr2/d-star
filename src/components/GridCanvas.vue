@@ -12,6 +12,7 @@ const COLORS: Record<string, string> = {
   visited: '#6366f1',
   raise: '#f97316',
   lower: '#14b8a6',
+  open: '#38bdf8',
   agent: '#06b6d4',
   border: '#475569',
 }
@@ -128,6 +129,7 @@ function draw() {
       else if (cell.state === 'visited') ctx.fillStyle = COLORS.visited
       else if (cell.state === 'raise') ctx.fillStyle = COLORS.raise
       else if (cell.state === 'lower') ctx.fillStyle = COLORS.lower
+      else if (cell.state === 'open') ctx.fillStyle = COLORS.open
       else ctx.fillStyle = TOPO_COLORS[Math.min(cell.weight - 1, 8)]
 
       ctx.fillRect(px, py, cellSize, cellSize)

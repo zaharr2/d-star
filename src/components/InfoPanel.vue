@@ -7,6 +7,8 @@ defineProps<{
   replanCount: number
   nodesProcessed: number
   escapeCount: number
+  pathCost?: number
+  elapsedMs?: number
 }>()
 </script>
 
@@ -18,6 +20,12 @@ defineProps<{
       Escapes: <strong>{{ escapeCount }}</strong>
     </span>
     <span>Nodes: <strong>{{ nodesProcessed }}</strong></span>
+    <span v-if="pathCost !== undefined">
+      Cost: <strong>{{ pathCost.toFixed(2) }}</strong>
+    </span>
+    <span v-if="elapsedMs !== undefined">
+      Time: <strong>{{ Math.round(elapsedMs) }} ms</strong>
+    </span>
     <span v-if="isFinished" :class="pathFound ? 'success' : 'fail'">
       {{ pathFound ? 'Found!' : 'No path' }}
     </span>

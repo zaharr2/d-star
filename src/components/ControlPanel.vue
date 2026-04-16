@@ -3,7 +3,7 @@ import type { HeuristicType } from '../types'
 
 type PickMode = 'none' | 'start' | 'end'
 
-defineProps<{
+withDefaults(defineProps<{
   isRunning: boolean
   isPaused: boolean
   isFinished: boolean
@@ -13,7 +13,12 @@ defineProps<{
   wallDensity: number
   pickMode: PickMode
   fogEnabled: boolean
-}>()
+  showFogControls?: boolean
+  showHeuristic?: boolean
+}>(), {
+  showFogControls: true,
+  showHeuristic: true,
+})
 
 const emit = defineEmits<{
   play: []
@@ -83,7 +88,7 @@ const emit = defineEmits<{
           :value="speed" @input="emit('update:speed', +($event.target as HTMLInputElement).value)" />
       </label>
 
-      <label class="toggle">
+      <label v-if="showFogControls" class="toggle">
         <input
           type="checkbox"
           :checked="fogEnabled"
@@ -93,7 +98,7 @@ const emit = defineEmits<{
         Туман війни
       </label>
 
-      <label :class="{ muted: !fogEnabled }">
+      <label v-if="showFogControls" :class="{ muted: !fogEnabled }">
         Visibility: {{ visibilityRadius }}
         <input type="range" min="1" max="20" step="1"
           :value="visibilityRadius"
@@ -109,7 +114,7 @@ const emit = defineEmits<{
           @input="emit('update:wallDensity', +($event.target as HTMLInputElement).value)" />
       </label>
 
-      <label>
+      <label v-if="showHeuristic">
         Heuristic:
         <select
           :value="heuristicType"
