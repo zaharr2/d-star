@@ -14,7 +14,7 @@ export function useAStarRunner(
   const isPaused = ref(false)
   const isFinished = ref(false)
   const pathFound = ref(false)
-  const speed = ref(50)
+  const speed = ref(5)
   const heuristicType = ref<HeuristicType>('manhattan')
   const stepCount = ref(0)
   const currentMessage = ref('')
