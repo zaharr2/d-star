@@ -479,6 +479,21 @@ export function* focusedDStar(
     // 3. Check if path exists
     const rNode = getNode(robotPos.x, robotPos.y)
     if (rNode.h === INF || rNode.bx === -1) {
+      // Propagation drained open without restoring h(robot): wipe and re-plan
+      // from goal using current knownWalls. Correct baseline; fixes degenerate
+      // state where RAISE consumed the region and LOWER never reached back.
+      hardEscape()
+      escapeCount++
+      plannedPath = extractPath()
+      const rn2 = getNode(robotPos.x, robotPos.y)
+      if (rn2.h < INF && rn2.bx !== -1) {
+        yield makeState(
+          plannedPath, [], [],
+          `Переплановано з нуля (escape #${escapeCount})`,
+          'escape', pathReachesGoal(plannedPath)
+        )
+        continue
+      }
       yield makeState([], [], [],
         `Шлях не знайдено з (${robotPos.x}, ${robotPos.y})`,
         'finished', false)
